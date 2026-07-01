@@ -5,6 +5,7 @@ namespace NetShareTool;
 public partial class MainWindow : Window
 {
     private readonly InternetSharingService _sharingService = new();
+    private readonly HotspotService _hotspotService = new();
 
     public MainWindow()
     {
@@ -44,6 +45,43 @@ public partial class MainWindow : Window
             await StaTaskRunner.Run(() => _sharingService.DisableSharing());
             await RefreshStatusAsync();
             ShowMessage("已禁用全部网络共享。");
+        });
+    }
+
+    private async void TransparentHotspotButton_Click(object sender, RoutedEventArgs e)
+    {
+        await RunOperationAsync("开启透明代理热点", async () =>
+        {
+            var hotspotResult = await _hotspotService.StartMobileHotspotAsync();
+            if (!hotspotResult.Started)
+            {
+                AppLogger.Info($"移动热点自动启动未完成：{hotspotResult.Message}");
+                ShowMessage("请在打开的系统设置中手动开启移动热点，然后点刷新或重试。");
+                MessageBox.Show(
+                    this,
+                    "Windows 没有允许程序直接开启移动热点，已打开系统热点设置页。\n\n请手动开启移动热点后，再点击“开启透明代理热点”。",
+                    "需要手动开启热点",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            await Task.Delay(2500);
+            var adapters = _sharingService.GetAdapters();
+            var mihomoAdapter = SelectPreferredAdapter(adapters, "Mihomo", "Clash", "Meta")
+                ?? throw new InvalidOperationException("未找到 Mihomo TUN 网卡。请先在 Mihomo/Clash 中开启 TUN 模式。");
+            var hotspotAdapter = SelectHotspotAdapter(adapters)
+                ?? throw new InvalidOperationException("未找到移动热点虚拟网卡。请确认 Windows 移动热点已经开启。");
+
+            PublicAdapterCombo.ItemsSource = adapters;
+            PrivateAdapterCombo.ItemsSource = adapters;
+            PublicAdapterCombo.SelectedItem = mihomoAdapter;
+            PrivateAdapterCombo.SelectedItem = hotspotAdapter;
+            UpdateAdapterDescriptions();
+
+            await StaTaskRunner.Run(() => _sharingService.EnableSharing(mihomoAdapter.Name, hotspotAdapter.Name));
+            await RefreshStatusAsync();
+            ShowMessage($"透明代理热点已开启：{mihomoAdapter.Name} -> {hotspotAdapter.Name}");
         });
     }
 
@@ -89,6 +127,27 @@ public partial class MainWindow : Window
             ?? adapters.FirstOrDefault();
     }
 
+    private static NetworkAdapterInfo? SelectHotspotAdapter(IReadOnlyList<NetworkAdapterInfo> adapters)
+    {
+        var preferredNames = new[]
+        {
+            "本地连接*",
+            "Local Area Connection*",
+            "Wi-Fi Direct",
+            "Microsoft Wi-Fi Direct",
+            "热点",
+            "Hotspot"
+        };
+
+        return adapters
+            .Where(adapter => adapter.Status == System.Net.NetworkInformation.OperationalStatus.Up)
+            .FirstOrDefault(adapter => preferredNames.Any(name =>
+                adapter.Name.Contains(name, StringComparison.OrdinalIgnoreCase) ||
+                adapter.Description.Contains(name, StringComparison.OrdinalIgnoreCase)))
+            ?? adapters.FirstOrDefault(adapter =>
+                adapter.Description.Contains("Wi-Fi Direct", StringComparison.OrdinalIgnoreCase));
+    }
+
     private void UpdateAdapterDescriptions()
     {
         PublicDescriptionText.Text = BuildDescription(PublicAdapterCombo.SelectedItem as NetworkAdapterInfo);
@@ -130,6 +189,7 @@ public partial class MainWindow : Window
     private void SetBusy(bool isBusy)
     {
         EnableButton.IsEnabled = !isBusy;
+        TransparentHotspotButton.IsEnabled = !isBusy;
         DisableButton.IsEnabled = !isBusy;
         RefreshButton.IsEnabled = !isBusy;
         OpenLogButton.IsEnabled = !isBusy;
