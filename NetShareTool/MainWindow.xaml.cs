@@ -79,7 +79,11 @@ public partial class MainWindow : Window
             PrivateAdapterCombo.SelectedItem = hotspotAdapter;
             UpdateAdapterDescriptions();
 
-            await StaTaskRunner.Run(() => _sharingService.EnableSharing(mihomoAdapter.Name, hotspotAdapter.Name));
+            await StaTaskRunner.Run(() => _sharingService.EnableSharing(
+                mihomoAdapter.Name,
+                mihomoAdapter.Description,
+                hotspotAdapter.Name,
+                hotspotAdapter.Description));
             await RefreshStatusAsync();
             ShowMessage($"透明代理热点已开启：{mihomoAdapter.Name} -> {hotspotAdapter.Name}");
         });

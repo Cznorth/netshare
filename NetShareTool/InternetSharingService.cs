@@ -48,6 +48,11 @@ public sealed class InternetSharingService
 
     public void EnableSharing(string publicName, string privateName)
     {
+        EnableSharing(publicName, null, privateName, null);
+    }
+
+    public void EnableSharing(string publicName, string? publicDescription, string privateName, string? privateDescription)
+    {
         if (string.Equals(publicName, privateName, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("来源网卡和共享出口不能相同。");
@@ -56,9 +61,9 @@ public sealed class InternetSharingService
         dynamic netShare = CreateNetShare();
         DisableAllSharing(netShare);
 
-        var publicConnection = FindConnection(netShare, publicName)
+        var publicConnection = FindConnection(netShare, publicName, publicDescription)
             ?? throw new InvalidOperationException($"未找到来源网卡：{publicName}");
-        var privateConnection = FindConnection(netShare, privateName)
+        var privateConnection = FindConnection(netShare, privateName, privateDescription)
             ?? throw new InvalidOperationException($"未找到共享出口网卡：{privateName}");
 
         dynamic publicConfig = netShare.INetSharingConfigurationForINetConnection(publicConnection);
@@ -80,7 +85,7 @@ public sealed class InternetSharingService
 
         foreach (var name in new[] { publicName, privateName }.Where(name => !string.IsNullOrWhiteSpace(name)))
         {
-            var connection = FindConnection(netShare, name!);
+            var connection = FindConnection(netShare, name!, null);
             if (connection is null)
             {
                 continue;
@@ -111,12 +116,19 @@ public sealed class InternetSharingService
         }
     }
 
-    private static object? FindConnection(dynamic netShare, string name)
+    private static object? FindConnection(dynamic netShare, string name, string? description)
     {
         foreach (var connection in EnumerateConnections(netShare))
         {
             dynamic props = netShare.NetConnectionProps(connection);
-            if (string.Equals((string)props.Name, name, StringComparison.OrdinalIgnoreCase))
+            var connectionName = (string)props.Name;
+            var deviceName = (string)props.DeviceName;
+
+            if (string.Equals(connectionName, name, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(deviceName, name, StringComparison.OrdinalIgnoreCase) ||
+                (!string.IsNullOrWhiteSpace(description) &&
+                 (string.Equals(connectionName, description, StringComparison.OrdinalIgnoreCase) ||
+                  string.Equals(deviceName, description, StringComparison.OrdinalIgnoreCase))))
             {
                 return connection;
             }
