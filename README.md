@@ -1,0 +1,47 @@
+# NetShareTool
+
+NetShareTool 是一个 Windows 桌面小工具，用来快速开启或关闭 Windows ICS（Internet Connection Sharing）网络共享。
+
+## 功能
+
+- 列出本机网络适配器
+- 选择上网来源网卡和共享出口网卡
+- 一键开启 ICS 网络共享
+- 一键禁用全部 ICS 共享
+- 显示当前 ICS 共享状态
+- 后台执行共享操作，避免界面卡顿
+- 写入本地日志，方便排查问题
+
+## 运行要求
+
+- Windows 10/11
+- 管理员权限
+- 小体积发布版需要安装 .NET 9 Desktop Runtime
+
+程序启动时会请求管理员权限，因为 Windows ICS 配置需要提升权限。
+
+## 开发
+
+```powershell
+cd NetShareTool
+dotnet build
+dotnet run
+```
+
+## 发布
+
+小体积单文件版：
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained false -o ..\dist-small-single /p:PublishSingleFile=true /p:EnableCompressionInSingleFile=false /p:DebugType=none /p:DebugSymbols=false
+```
+
+自包含单文件版：
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true -o ..\dist /p:PublishSingleFile=true
+```
+
+## 注意
+
+开启共享前，程序会先禁用当前已有 ICS 共享，以避免 Windows ICS 配置冲突。
