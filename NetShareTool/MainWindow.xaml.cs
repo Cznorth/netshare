@@ -133,23 +133,29 @@ public partial class MainWindow : Window
 
     private static NetworkAdapterInfo? SelectHotspotAdapter(IReadOnlyList<NetworkAdapterInfo> adapters)
     {
-        var preferredNames = new[]
+        static bool IsExcluded(NetworkAdapterInfo adapter)
         {
-            "本地连接*",
-            "Local Area Connection*",
-            "Wi-Fi Direct",
-            "Microsoft Wi-Fi Direct",
-            "热点",
-            "Hotspot"
-        };
+            var text = $"{adapter.Name} {adapter.Description}";
+            return text.Contains("WAN Miniport", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("Wintun", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("Mihomo", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("Meta Tunnel", StringComparison.OrdinalIgnoreCase) ||
+                   text.Contains("VMware", StringComparison.OrdinalIgnoreCase);
+        }
 
         return adapters
             .Where(adapter => adapter.Status == System.Net.NetworkInformation.OperationalStatus.Up)
-            .FirstOrDefault(adapter => preferredNames.Any(name =>
-                adapter.Name.Contains(name, StringComparison.OrdinalIgnoreCase) ||
-                adapter.Description.Contains(name, StringComparison.OrdinalIgnoreCase)))
-            ?? adapters.FirstOrDefault(adapter =>
-                adapter.Description.Contains("Wi-Fi Direct", StringComparison.OrdinalIgnoreCase));
+            .Where(adapter => !IsExcluded(adapter))
+            .FirstOrDefault(adapter =>
+                adapter.Description.Contains("Microsoft Wi-Fi Direct", StringComparison.OrdinalIgnoreCase) ||
+                adapter.Description.Contains("Wi-Fi Direct Virtual Adapter", StringComparison.OrdinalIgnoreCase) ||
+                adapter.Description.Contains("Wi-Fi Direct", StringComparison.OrdinalIgnoreCase))
+            ?? adapters
+                .Where(adapter => adapter.Status == System.Net.NetworkInformation.OperationalStatus.Up)
+                .Where(adapter => !IsExcluded(adapter))
+                .FirstOrDefault(adapter =>
+                    adapter.Name.Contains("本地连接*", StringComparison.OrdinalIgnoreCase) ||
+                    adapter.Name.Contains("Local Area Connection*", StringComparison.OrdinalIgnoreCase));
     }
 
     private void UpdateAdapterDescriptions()
